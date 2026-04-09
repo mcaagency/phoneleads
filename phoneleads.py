@@ -1,5 +1,6 @@
 import requests
 import random
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -14,7 +15,7 @@ def has_own_website(name, address):
         response = requests.get(
             "https://api.duckduckgo.com/",
             params={"q": query, "format": "json", "no_html": 1},
-            timeout=5
+            timeout=3
         )
         data = response.json()
         official = data.get("AbstractURL", "") or data.get("OfficialWebsite", "")
@@ -24,6 +25,37 @@ def has_own_website(name, address):
         return False
     except:
         return False
+
+def process_business(biz, yelp_headers):
+    try:
+        biz_id = biz.get("id")
+        detail = requests.get(
+            f"https://api.yelp.com/v3/businesses/{biz_id}",
+            headers=yelp_headers,
+            timeout=5
+        ).json()
+
+        website = detail.get("website", "")
+        if website and website.strip() != "":
+            return None
+
+        display_phone = detail.get("display_phone", "")
+        if not display_phone or display_phone.strip() == "":
+            return None
+
+        name = detail.get("name", "")
+        address = ", ".join(detail["location"].get("display_address", []))
+
+        if has_own_website(name, address):
+            return None
+
+        return {
+            "name": name,
+            "phone": display_phone,
+            "address": address
+        }
+    except:
+        return None
 
 @app.route("/")
 def index():
@@ -50,32 +82,12 @@ def search():
     businesses = response.json().get("businesses", [])
 
     leads = []
-    for biz in businesses:
-        biz_id = biz.get("id")
-        detail = requests.get(
-            f"https://api.yelp.com/v3/businesses/{biz_id}",
-            headers=yelp_headers
-        ).json()
-
-        website = detail.get("website", "")
-        if website and website.strip() != "":
-            continue
-
-        display_phone = detail.get("display_phone", "")
-        if not display_phone or display_phone.strip() == "":
-            continue
-
-        name = detail.get("name", "")
-        address = ", ".join(detail["location"].get("display_address", []))
-
-        if has_own_website(name, address):
-            continue
-
-        leads.append({
-            "name": name,
-            "phone": display_phone,
-            "address": address
-        })
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(process_business, biz, yelp_headers): biz for biz in businesses}
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                leads.append(result)
 
     return jsonify({"total_checked": len(businesses), "leads": leads})
 
