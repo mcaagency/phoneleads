@@ -8,25 +8,6 @@ CORS(app)
 
 YELP_KEY = "vNXs85Q0Dpm2C7_8CoXiqczM_lFH10nhKu3PKeW-88sgHha1abWLQSH_l1hoiehaOI9rN-tF_AWRAhdz_yU7h7qrWajNlI3xyvegyBNks3-bJVOrT3hmQujS4N7VaXYx"
 
-def google_has_website(business_name, address):
-    try:
-        query = f"{business_name} {address} official website"
-        response = requests.get(
-            "https://www.google.com/search",
-            params={"q": query},
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=5
-        )
-        text = response.text.lower()
-        skip_domains = ["yelp.com", "facebook.com", "instagram.com", "google.com", "yellowpages.com", "mapquest.com"]
-        lines = [l for l in text.split() if "http" in l]
-        for line in lines:
-            if not any(d in line for d in skip_domains):
-                return True
-        return False
-    except:
-        return False
-
 @app.route("/")
 def index():
     return "MCA Agency Leads Finder API is running!"
@@ -59,20 +40,14 @@ def search():
         if website and website.strip() != "":
             continue
 
-        phone = detail.get("phone", "") or detail.get("display_phone", "")
-        if not phone or phone.strip() == "":
-            continue
-
-        name = detail.get("name", "")
-        address = ", ".join(detail["location"].get("display_address", []))
-
-        if google_has_website(name, address):
+        display_phone = detail.get("display_phone", "")
+        if not display_phone or display_phone.strip() == "":
             continue
 
         leads.append({
-            "name": name,
-            "phone": detail.get("display_phone", phone),
-            "address": address
+            "name": detail.get("name", ""),
+            "phone": display_phone,
+            "address": ", ".join(detail["location"].get("display_address", []))
         })
 
     return jsonify({"total_checked": len(businesses), "leads": leads})
