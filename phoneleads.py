@@ -1,5 +1,4 @@
 import requests
-import random
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -12,6 +11,25 @@ FOURSQUARE_KEY = "FHPFAEY4KVHW34ZAS4XM3CX1MV1TUKPDEHLI1SND5BFP5CEB"
 def index():
     return "MCA Agency Leads Finder API is running!"
 
+@app.route("/debug")
+def debug():
+    headers = {
+        "Authorization": FOURSQUARE_KEY,
+        "accept": "application/json"
+    }
+    params = {
+        "query": "barbershop",
+        "near": "Compton, CA",
+        "limit": 10,
+        "fields": "name,location,tel,website"
+    }
+    response = requests.get(
+        "https://api.foursquare.com/v3/places/search",
+        headers=headers,
+        params=params
+    )
+    return response.json()
+
 @app.route("/search")
 def search():
     term = request.args.get("term", "barbershop")
@@ -21,20 +39,17 @@ def search():
         "Authorization": FOURSQUARE_KEY,
         "accept": "application/json"
     }
-
     params = {
         "query": term,
         "near": city,
         "limit": 50,
         "fields": "name,location,tel,website"
     }
-
     response = requests.get(
         "https://api.foursquare.com/v3/places/search",
         headers=headers,
         params=params
     )
-
     data = response.json()
     businesses = data.get("results", [])
 
